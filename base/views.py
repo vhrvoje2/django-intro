@@ -6,7 +6,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
-from .models import Room, Topic
+from django.db.models.functions import Lower
+from .models import Room, Topic, Message
 from .forms import RoomForm
 
 
@@ -69,14 +70,49 @@ def home(request):
     )
     topics = Topic.objects.all()
     room_count = rooms.count()
-    context = {"rooms": rooms, "topics": topics, "room_count": room_count}
+    recent_messages = Message.objects.filter(Q(room__topic__name__icontains=query))
+
+    context = {
+        "rooms": rooms,
+        "topics": topics,
+        "room_count": room_count,
+        "recent_messages": recent_messages,
+    }
     return render(request, "base/home.html", context)
 
 
 def room(request, pk):
     room = Room.objects.get(id=pk)
-    context = {"room": room}
+    room_messages = room.message_set.all()
+    participants = room.participants.all().order_by(Lower("username"))
+
+    if request.method == "POST":
+        Message.objects.create(
+            user=request.user, room=room, body=request.POST.get("body")
+        )
+        room.participants.add(request.user)
+        return redirect("room", pk=room.id)
+
+    context = {
+        "room": room,
+        "room_messages": room_messages,
+        "participants": participants,
+    }
     return render(request, "base/room.html", context)
+
+
+def user_profile(request, pk):
+    user = User.objects.get(id=pk)
+    rooms = user.room_set.all()
+    recent_messages = user.message_set.all()
+    topics = Topic.objects.all()
+    context = {
+        "user": user,
+        "rooms": rooms,
+        "recent_messages": recent_messages,
+        "topics": topics,
+    }
+    return render(request, "base/profile.html", context)
 
 
 @login_required(login_url="login")
@@ -121,3 +157,16 @@ def delete_room(request, pk):
         room.delete()
         return redirect("home")
     return render(request, "base/delete.html", {"obj": room})
+
+
+@login_required(login_url="login")
+def delete_message(request, pk):
+    message = Message.objects.get(id=pk)
+
+    if request.user != message.user:
+        return HttpResponse("You are not allowed to delete this message!")
+
+    if request.method == "POST":
+        message.delete()
+        return redirect("home")
+    return render(request, "base/delete.html", {"obj": message})

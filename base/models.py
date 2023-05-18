@@ -16,6 +16,7 @@ class Room(models.Model):
     name = models.CharField(max_length=200)
     topic = models.ForeignKey(Topic, null=True, on_delete=models.SET_NULL)
     description = models.TextField(null=True, blank=True)
+    participants = models.ManyToManyField(User, related_name="participants", blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
@@ -33,5 +34,9 @@ class Message(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ["-updated", "-created"]
+
+
     def __str__(self):
-        return self.body[:50]
+        return self.body if len(self.body) <= 50 else f"{self.body[:47]}..."
