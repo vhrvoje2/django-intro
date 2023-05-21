@@ -8,7 +8,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.db.models.functions import Lower
 from .models import Room, Topic, Message
-from .forms import RoomForm
+from .forms import RoomForm, UserForm
 
 
 def login_user(request):
@@ -68,7 +68,8 @@ def home(request):
         | Q(name__icontains=query)
         | Q(description__icontains=query)
     )
-    topics = Topic.objects.all()
+
+    topics = Topic.objects.all()[:5]
     room_count = rooms.count()
     recent_messages = Message.objects.filter(Q(room__topic__name__icontains=query))
 
@@ -182,3 +183,31 @@ def delete_message(request, pk):
         message.delete()
         return redirect("home")
     return render(request, "base/delete.html", {"obj": message})
+
+
+@login_required(login_url="login")
+def update_user(request):
+    user = request.user
+    form = UserForm(instance=user)
+
+    if request.method == "POST":
+        form = UserForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect("user-profile", pk=user.id)
+
+    context = {"form": form}
+    return render(request, "base/update-user.html", context=context)
+
+
+def topics_page(request):
+    query = request.GET.get("query") if request.GET.get("query") != None else ""
+    topics = Topic.objects.filter(name__icontains=query)
+    context = {"topics": topics}
+    return render(request, "base/topics.html", context=context)
+
+
+def activity_page(request):
+    recent_messages = Message.objects.all()
+    context = {"recent_messages": recent_messages}
+    return render(request, "base/activity.html", context=context)
